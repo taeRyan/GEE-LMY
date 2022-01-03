@@ -1,0 +1,56 @@
+//主成分分析函数
+var PCA = function(centered, scale, region) {
+   var bandNames = centered.bandNames();
+    // 图像波段重命名函数
+var getNewBandNames = function(prefix) {
+    var seq = ee.List.sequence(1, bandNames.length());
+    return seq.map(function(b) {
+      return ee.String(prefix).cat(ee.Number(b).int());
+    });
+  };
+    // 图像转为一维数组
+    var arrays = centered.toArray();
+    // 计算相关系数矩阵
+    var covar = arrays.reduceRegion({
+      reducer: ee.Reducer.centeredCovariance(),
+      geometry: region,
+      scale: scale,
+      maxPixels: 1e9
+    });
+    // 获取“数组”协方差结果并转换为数组。
+    // 波段与波段之间的协方差
+    var covarArray = ee.Array(covar.get('array'));
+    // 执行特征分析，并分割值和向量。
+    var eigens = covarArray.eigen();
+    // 特征值的P向量长度
+    var eigenValues = eigens.slice(1, 0, 1);
+    //计算主成分载荷
+    var eigenValuesList = eigenValues.toList().flatten()
+    var total = eigenValuesList.reduce(ee.Reducer.sum())
+    var percentageVariance = eigenValuesList.map(function(item) {
+      return (ee.Number(item).divide(total)).multiply(100).format('%.2f')
+    })
+// print(eigenValues ,'特征值')
+//     print("贡献率", percentageVariance)  
+    // PxP矩阵，其特征向量为行。
+    var eigenVectors = eigens.slice(1, 1);
+    // 将图像转换为二维阵列
+    var arrayImage = arrays.toArray(1);
+    //使用特征向量矩阵左乘图像阵列
+    var principalComponents = ee.Image(eigenVectors).matrixMultiply(arrayImage);
+    // 将特征值的平方根转换为P波段图像。
+    var sdImage = ee.Image(eigenValues.sqrt())
+      .arrayProject([0]).arrayFlatten([getNewBandNames('sd')]);
+    //将PC转换为P波段图像，通过SD标准化。
+    principalComponents=principalComponents
+      // 抛出一个不需要的维度，[[]]->[]。
+      .arrayProject([0])
+      // 使单波段阵列映像成为多波段映像，[]->image。
+      .arrayFlatten([getNewBandNames('pc')])
+      // 通过SDs使PC正常化。
+      .divide(sdImage);
+    return principalComponents
+  };
+  exports = {
+    PCA:PCA
+  }
