@@ -1,0 +1,59 @@
+///////////////  线性插值 ////////////////////////
+//          光谱时序曲线插值函数
+// 使用线性内插的方法对时序光谱曲线中的部分缺失数据依据其时间前后的光谱信息对其插值
+// 参数：imgcoll 影像集类型（imagecollection）需要保证，影像的顺序依据时间进行排列，第一张影像的时间应该为最早的时间。
+//       每张影像至少有两个波段，除待插值波段外，应有一个时间波段，为Int类型，代表该影像所处的时间，单位可由自己确定，
+//       但同一个影像集内应统一时间单位，该波段应在影像全范围内非NULL，且不可位于影像的第一个波段的位置。
+//       此外每张影像需要保证有一个“system:time_start”的属性，其会传递至插值后的影像，以方便前后对应。
+// 参数：timeBandNames 字符串类型（String），其代表第一个参数imgcoll中影像的时间波段的波段名称。
+// 返回：imgcoll_Interpol 影像集类型（imagecollection）插值后的结果与imgcoll的影像顺序相同。
+function Interpol(imgcoll, timeBandName)
+{
+  // length
+  var colsize = imgcoll.size();
+  var bandNames = imgcoll.first().bandNames();
+  // make sure first and last NonNull
+  var firstImg = imgcoll.reduce(ee.Reducer.firstNonNull()).rename(bandNames); // yuan
+  var lastImg = imgcoll.reduce(ee.Reducer.lastNonNull()).rename(bandNames);  //  jin
+  var imgList = imgcoll.toList(colsize);
+  // reset imglist
+  var B = imgList.slice(1,-1);
+  var A = ee.Image(imgList.get(0));
+  var C = ee.Image(imgList.get(-1));
+  firstImg = firstImg.set({'system:time_start':A.get('system:time_start')});
+                  //  .set({'user:index':A.get('user:index')});
+  lastImg = lastImg.set({'system:time_start':C.get('system:time_start')});
+                  //  .set({'user:index':C.get('user:index')});
+  var D = B.insert(0, firstImg).add(lastImg);
+  var D_imgcol = ee.ImageCollection(D);
+  // mask imgcol
+  var imgcollmask = imgcoll.map(function(img)
+  {
+    img = img.updateMask(img.select(0).mask());
+    return img;
+  });
+  var D_mask = imgcollmask.toList(colsize);
+  var maskBandNames = imgcollmask.first().bandNames();
+  // interpol
+  var imgcoll_List_Interpol = ee.List.sequence(1, colsize.subtract(2)).map(function(i)
+  {
+    i = ee.Number(i);
+    var pre= ee.ImageCollection(D_mask.slice(0,i.add(1))).reduce(ee.Reducer.lastNonNull());
+    var cur= D.get(i);
+    var next=ee.ImageCollection(D_mask.slice(i,-1)).reduce(ee.Reducer.firstNonNull());
+    pre=ee.Image(pre).rename(maskBandNames);
+    cur=ee.Image(cur).rename(bandNames);  // 
+    next=ee.Image(next).rename(maskBandNames);
+    var DOY_pre = pre.select(timeBandName);
+    var DOY_cur = cur.select(timeBandName);
+    var DOY_next= next.select(timeBandName);
+    var cur_date = cur.get('system:time_start');
+    var interpol = pre.add(next.subtract(pre).multiply(DOY_cur.subtract(DOY_pre).divide(DOY_next.subtract(DOY_pre))))
+        .set({'system:time_start':cur_date});
+    return interpol;
+  });
+  // insert first and last img
+  var imgcoll_Interpol = ee.ImageCollection(imgcoll_List_Interpol.insert(0,firstImg).add(lastImg));
+  return imgcoll_Interpol;  
+}
+exports = {Interpol:Interpol}
