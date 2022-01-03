@@ -1,0 +1,149 @@
+function L5_Wet(img){
+  return img.addBands(img.expression('B*(0.0315) + G*(0.2021) + R*(0.3012) + NIR*(0.1594) + SWIR1*(-0.6806) + SWIR2*(-0.6109)',{
+       'B': img.select(['B1']).multiply(0.0001),
+       'G': img.select(['B2']).multiply(0.0001),
+       'R': img.select(['B3']).multiply(0.0001),
+       'NIR': img.select(['B4']).multiply(0.0001),
+       'SWIR1': img.select(['B5']).multiply(0.0001),
+       'SWIR2': img.select(['B7']).multiply(0.0001)
+     }).rename('Wet'))
+}
+function L7_Wet(img){
+  return img.addBands(img.expression('B*(0.2626) + G*(0.2141) + R*(0.0926) + NIR*(0.0656) + SWIR1*(-0.7629) + SWIR2*(-0.5388)',{
+       'B': img.select(['B1']).multiply(0.0001),
+       'G': img.select(['B2']).multiply(0.0001),
+       'R': img.select(['B3']).multiply(0.0001),
+       'NIR': img.select(['B4']).multiply(0.0001),
+       'SWIR1': img.select(['B5']).multiply(0.0001),
+       'SWIR2': img.select(['B7']).multiply(0.0001)
+     }).rename('Wet'))   
+}
+function L8_Wet(img){
+  return img.addBands(img.expression('B*(0.1509) + G*(0.1973) + R*(0.3279) + NIR*(0.3406) + SWIR1*(-0.7112) + SWIR2*(-0.4572)',{
+       'B': img.select(['B2']).multiply(0.0001),
+       'G': img.select(['B3']).multiply(0.0001),
+       'R': img.select(['B4']).multiply(0.0001),
+       'NIR': img.select(['B5']).multiply(0.0001),
+       'SWIR1': img.select(['B6']).multiply(0.0001),
+       'SWIR2': img.select(['B7']).multiply(0.0001)
+     }).rename('Wet'))
+}
+function L57_ndvi(img){
+  return img.addBands(img.normalizedDifference(['B4', 'B3']).rename('ndvi'))
+}
+function L8_ndvi(img){
+  return img.addBands(img.normalizedDifference(['B5', 'B4']).rename('ndvi'))
+}
+function L5_LST(img){
+// 选择第Band10辐射亮度波段
+  var L5_B6 = img.select('B6').multiply(0.1)
+// 计算NDVI
+  var ndvi =  img.normalizedDifference(['B4', 'B3'])
+// 计算植被覆盖度pv，假设最低值为0.05，最大值为0.95
+  var pv =(ndvi.subtract(ee.Image(0.05)).divide((ee.Image(0.95)).subtract(ee.Image(0.05)))).pow(ee.Number(2))
+// 计算比辐射率c
+  var c = pv.expression("0.004*pv+0.986", {pv: pv})
+// // 计算黑体辐射亮度
+  var LST = L5_B6.expression(
+'(L5_B6/(1 + (0.001145* (L5_B6 / 1.438))*log(c)))-273.15', {
+ L5_B6: L5_B6,
+    c: c,
+})
+  return img.addBands(LST.rename('LST'))
+}
+function L7_LST(img){
+// 选择第Band10辐射亮度波段
+  var L7_B6 = img.select('B6').multiply(0.1)
+// 计算NDVI
+  var ndvi =  img.normalizedDifference(['B4', 'B3'])
+// 计算植被覆盖度pv，假设最低值为0.05，最大值为0.95
+  var pv = (ndvi.subtract(ee.Image(0.05)).divide((ee.Image(0.95)).subtract(ee.Image(0.05)))).pow(ee.Number(2))
+// 计算比辐射率c
+  var c = pv.expression("0.004*pv+0.986", {pv: pv})
+// // 计算黑体辐射亮度
+  var LST = L7_B6.expression(
+'(L7_B6/(1 + (0.001145* (L7_B6 / 1.438))*log(c)))-273.15', {
+ L7_B6: L7_B6,
+    c: c,
+})
+  return img.addBands(LST.rename('LST'))
+}
+function L8_LST(img){
+// 选择第Band10辐射亮度波段
+  var L8_B10 = img.select('B10').multiply(0.1)
+// 计算NDVI
+  var ndvi =  img.normalizedDifference(['B5', 'B4'])
+// 计算植被覆盖度pv，假设最低值为0.05，最大值为0.95
+  var pv = (ndvi.subtract(ee.Image(0.05)).divide((ee.Image(0.95)).subtract(ee.Image(0.05)))).pow(ee.Number(2))
+// 计算比辐射率c
+  var c = pv.expression("0.004*pv+0.986", {pv: pv})
+// // 计算黑体辐射亮度
+  var LST = L8_B10.expression(
+'(L8_B10/(1 + (0.00109* (L8_B10 / 1.438))*log(c)))-273.15', {
+ L8_B10: L8_B10,
+    c: c,
+})
+  return img.addBands(LST.rename('LST'))
+}
+function L57_ndbsi(img){
+    var ibi = img.expression('(2 * SWIR1 / (SWIR1 + NIR) - (NIR / (NIR + RED) + GREEN / (GREEN + SWIR1))) / (2 * SWIR1 / (SWIR1 + NIR) + (NIR / (NIR + RED) + GREEN / (GREEN + SWIR1)))', {
+      'SWIR1': img.select('B5').multiply(0.0001),
+      'NIR': img.select('B4').multiply(0.0001),
+      'RED': img.select('B3').multiply(0.0001),
+      'GREEN': img.select('B2').multiply(0.0001)
+    })
+  var si = img.expression('((SWIR1 + RED) - (NIR + BLUE)) / ((SWIR1 + RED) + (NIR + BLUE))', {
+      'SWIR1': img.select('B5').multiply(0.0001),
+      'NIR': img.select('B4').multiply(0.0001),
+      'RED': img.select('B3').multiply(0.0001),
+      'BLUE': img.select('B1').multiply(0.0001)
+    }) 
+  var ndbsi = (ibi.add(si)).divide(2)
+  return img.addBands(ndbsi.rename('ndbsi'))
+}
+function L8_ndbsi(img){
+    var ibi = img.expression('(2 * SWIR1 / (SWIR1 + NIR) - (NIR / (NIR + RED) + GREEN / (GREEN + SWIR1))) / (2 * SWIR1 / (SWIR1 + NIR) + (NIR / (NIR + RED) + GREEN / (GREEN + SWIR1)))', {
+      'SWIR1': img.select('B6').multiply(0.0001),
+      'NIR': img.select('B5').multiply(0.0001),
+      'RED': img.select('B4').multiply(0.0001),
+      'GREEN': img.select('B3').multiply(0.0001)
+    })
+  var si = img.expression('((SWIR1 + RED) - (NIR + BLUE)) / ((SWIR1 + RED) + (NIR + BLUE))', {
+      'SWIR1': img.select('B6').multiply(0.0001),
+      'NIR': img.select('B5').multiply(0.0001),
+      'RED': img.select('B4').multiply(0.0001),
+      'BLUE': img.select('B2').multiply(0.0001)
+    }) 
+  var ndbsi = (ibi.add(si)).divide(2)
+  return img.addBands(ndbsi.rename('ndbsi'))
+}
+function L5_RSEI(img){
+  return L5_Wet(img).select('Wet').addBands(L57_ndvi(img).select('ndvi'))
+              .addBands(L5_LST(img).select('LST')).addBands(L57_ndbsi(img).select('ndbsi'))
+              .copyProperties(img,img.propertyNames())
+}
+function L7_RSEI(img){
+  return L7_Wet(img).select('Wet').addBands(L57_ndvi(img).select('ndvi'))
+              .addBands(L7_LST(img).select('LST')).addBands(L57_ndbsi(img).select('ndbsi'))
+              .copyProperties(img,img.propertyNames())
+}
+function L8_RSEI(img){
+  return L8_Wet(img).select('Wet').addBands(L8_ndvi(img).select('ndvi'))
+              .addBands(L8_LST(img).select('LST')).addBands(L8_ndbsi(img).select('ndbsi'))
+              .copyProperties(img,img.propertyNames())
+}
+exports = {
+    L5_Wet : L5_Wet, 
+    L7_Wet : L7_Wet,  
+    L8_Wet  : L8_Wet,
+    L57_ndvi : L57_ndvi, 
+    L8_ndvi  : L8_ndvi,
+    L5_LST  : L5_LST,
+    L7_LST  : L7_LST,
+    L8_LST  : L8_LST,
+    L57_ndbsi:L57_ndbsi,
+    L8_ndbsi:L8_ndbsi,
+    L5_RSEI:L5_RSEI,
+    L7_RSEI:L7_RSEI,
+    L8_RSEI:L8_RSEI
+};
